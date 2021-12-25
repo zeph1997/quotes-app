@@ -6,6 +6,7 @@ import android.content.Context;
 import android.util.Log;
 import android.widget.RemoteViews;
 
+import com.android.volley.DefaultRetryPolicy;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
@@ -56,6 +57,7 @@ public class QuotesWidget extends AppWidgetProvider {
                             quote = obj.getString("Quote");
                             author = obj.getString("Author");
                         } catch (JSONException e) {
+                            Log.i("Printing stack trace","Printing stack trace");
                             e.printStackTrace();
                             quote = "That didn't work!";
                             author = "Error!";
@@ -75,7 +77,7 @@ public class QuotesWidget extends AppWidgetProvider {
                 appWidgetManager.updateAppWidget(appWidgetId, views);
             }
         });
-
+        stringRequest.setRetryPolicy(new DefaultRetryPolicy(10000,2, DefaultRetryPolicy.DEFAULT_BACKOFF_MULT));
         stringRequest.setTag(TAG);
         // Add the request to the RequestQueue.
         queue.add(stringRequest);
