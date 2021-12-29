@@ -1,10 +1,16 @@
 package com.example.quoteapp;
 
+import android.app.AlarmManager;
+import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;
+import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
+import android.os.Build;
 import android.util.Log;
 import android.widget.RemoteViews;
+import android.widget.Toast;
 
 import com.android.volley.DefaultRetryPolicy;
 import com.android.volley.Request;
@@ -17,6 +23,7 @@ import com.android.volley.toolbox.Volley;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.UnsupportedEncodingException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -27,8 +34,9 @@ import java.util.Date;
  */
 public class QuotesWidget extends AppWidgetProvider {
     private static RequestQueue queue;
-    private static StringRequest stringRequest;
+//    private static StringRequest stringRequest;
     private static String TAG = "getQuote";
+    private static final String ACTION_SCHEDULED_UPDATE = "com.example.quoteapp.SCHEDULED_UPDATE";
 
     static void updateAppWidget(Context context, AppWidgetManager appWidgetManager,
                                 int appWidgetId) {
@@ -43,7 +51,7 @@ public class QuotesWidget extends AppWidgetProvider {
         queue = Volley.newRequestQueue(context.getApplicationContext());
         String url ="https://quotes-app-backend.herokuapp.com/getrandomquote";
         // Request a string response from the provided URL.
-        stringRequest = new StringRequest(Request.Method.GET, url,
+        StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
                 new Response.Listener<String>() {
                     @Override
                     public void onResponse(String response) {
@@ -72,6 +80,8 @@ public class QuotesWidget extends AppWidgetProvider {
             @Override
             public void onErrorResponse(VolleyError error) {
                 Log.i("FAIL","BAD");
+                Log.i("ISSUE BAD",error.toString());
+
                 views.setTextViewText(R.id.widget_quoteTv, "That didn't work!");
                 views.setTextViewText(R.id.widget_authorTv, "Error!");
                 appWidgetManager.updateAppWidget(appWidgetId, views);
@@ -95,14 +105,54 @@ public class QuotesWidget extends AppWidgetProvider {
     @Override
     public void onEnabled(Context context) {
         // Enter relevant functionality for when the first widget is created
+        super.onEnabled(context);
 
     }
 
     @Override
     public void onDisabled(Context context) {
         // Enter relevant functionality for when the last widget is disabled
+        super.onDisabled(context);
         if (queue != null) {
             queue.cancelAll(TAG);
+        }
+    }
+
+    @Override
+    public void onReceive(Context context, Intent intent) {
+        if (intent.getAction().equals(ACTION_SCHEDULED_UPDATE)) {
+            AppWidgetManager manager = AppWidgetManager.getInstance(context);
+            int[] ids = manager.getAppWidgetIds(new ComponentName(context, QuotesWidget.class));
+            onUpdate(context, manager, ids);
+        }
+
+        super.onReceive(context, intent);
+    }
+    private static void _scheduleNextUpdate(Context context) {
+        AlarmManager alarmManager =
+                (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        // Substitute AppWidget for whatever you named your AppWidgetProvider subclass
+        Intent intent = new Intent(context, QuotesWidget.class);
+        intent.setAction(ACTION_SCHEDULED_UPDATE);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0, intent, 0);
+
+        // Get a calendar instance for midnight tomorrow.
+        Calendar midnight = Calendar.getInstance();
+        midnight.set(Calendar.HOUR_OF_DAY, 0);
+        midnight.set(Calendar.MINUTE, 0);
+        // Schedule one second after midnight, to be sure we are in the right day next time this
+        // method is called.  Otherwise, we risk calling onUpdate multiple times within a few
+        // milliseconds
+        midnight.set(Calendar.SECOND, 1);
+        midnight.set(Calendar.MILLISECOND, 0);
+        midnight.add(Calendar.DAY_OF_YEAR, 1);
+
+        // For API 19 and later, set may fire the intent a little later to save battery,
+        // setExact ensures the intent goes off exactly at midnight.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.KITKAT) {
+            alarmManager.set(AlarmManager.RTC_WAKEUP, midnight.getTimeInMillis(), pendingIntent);
+        } else {
+            alarmManager.setExact(AlarmManager.RTC_WAKEUP, midnight.getTimeInMillis(), pendingIntent);
         }
     }
 }
